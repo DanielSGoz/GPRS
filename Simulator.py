@@ -20,6 +20,8 @@ print()
 print("==========  BEGIN  ==========")
 print()
 
+middle = 0
+
 # ==========================================================
 
 # we try to calculate top-down. If one is not defined, we
@@ -55,7 +57,7 @@ def integrate_Riemann(f, a, b, N):
 
 # muP, muQ are vectors, varP, varQ are scalars
 def initialize_normal(muP, varP, muQ, varQ):
-	global sigma, wP, wQ, r, p, q
+	global sigma, wP, wQ, r, p, q, middle
 	muP = tf.convert_to_tensor(muP, dtype=jnp.float32)
 	muQ = tf.convert_to_tensor(muQ, dtype=jnp.float32)
 	varP = tf.convert_to_tensor(varP, dtype=jnp.float32)
@@ -64,7 +66,8 @@ def initialize_normal(muP, varP, muQ, varQ):
 
 	d = muP.shape[0]
 
-	muZ = tf.math.subtract(tf.math.scalar_mul(varP, muQ), tf.math.scalar_mul(varQ, muP))
+	muZ = (varP * muQ - varQ * muP)/(varP - varQ)
+	middle = muZ
 	varZ = varP * varQ / (varP - varQ)
 
 	Z = (varP/varQ * 2*math.pi * varZ) ** (d / 2)
@@ -77,8 +80,8 @@ def initialize_normal(muP, varP, muQ, varQ):
 	normalQ = tfd.Normal(loc=muQ, scale=math.sqrt(varQ))
 	normalZ = tfd.Normal(loc=muZ, scale=math.sqrt(varZ))
 
-	non_central_chi2P = tfd.NoncentralChi2(d, tf.reduce_sum(tf.square(tf.math.subtract(tf.math.scalar_mul(1/math.sqrt(varP), muZ), muP))))
-	non_central_chi2Q = tfd.NoncentralChi2(d, tf.reduce_sum(tf.square(tf.math.subtract(tf.math.scalar_mul(1/math.sqrt(varQ), muZ), muQ))))
+	non_central_chi2P = tfd.NoncentralChi2(d, tf.reduce_sum(tf.square(tf.math.subtract(muZ, muP))) / varP)
+	non_central_chi2Q = tfd.NoncentralChi2(d, tf.reduce_sum(tf.square(tf.math.subtract(muZ, muQ))) / varQ)
 
 	p = normalP.prob
 	q = normalQ.prob
@@ -142,24 +145,29 @@ def initialize_triangular(a, c, b):
 	sigma = lambda h: integrate_Riemann(lambda x: 1/(wQ(x) - x*wP(x)), 0, h, 100)
 
 
-
-
-
 # ==========================================================
 
-initialize_normal([0], 2, [1], 1)
+x = tf.convert_to_tensor(jnp.linspace(-10, 10, 20), dtype=jnp.float32)
+
+initialize_normal([0], 1, [0], 0.5)
 # initialize_uniform(-3, 3, -2, 2)
 # initialize_triangular(0.2, 0.5, 0.6)
 
-# x = tf.math.scalar_mul(KLK, tf.convert_to_tensor(jnp.linspace(0.001, 0.999, 20), dtype=jnp.float32))
-x = tf.convert_to_tensor(jnp.linspace(-5, 5, 200), dtype=jnp.float32)
-y = tf.map_fn(lambda t: sigma(r(t)), x)
-plt.axis([-5, 5, 0, 10])
+y = tf.map_fn(lambda t: sigma(r(t + middle)), x)
+
+initialize_normal([0], 1, [0.1], 0.5)
+
+y2 = tf.map_fn(lambda t: sigma(r(t + middle)), x)
+
+initialize_normal([0], 1, [0.2], 0.5)
+
+y3 = tf.map_fn(lambda t: sigma(r(t + middle)), x)
+
+print(y2 - y)
+print(y3 - y2)
+
+# plt.axis([-2, 2, 0, 3])
 plt.plot(x, y)
+plt.plot(x, y2)
+plt.plot(x, y3)
 plt.show()
-
-
-# plt.scatter(data[:, 0], data[:, 1], color='blue', alpha=0.4)
-# plt.axis([-5, 5, 0, 10])
-# plt.title("Data set")
-# plt.show()
