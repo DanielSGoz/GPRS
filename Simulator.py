@@ -20,7 +20,7 @@ print()
 print("==========  BEGIN  ==========")
 print()
 
-middle = 0
+mode = 0
 
 # ==========================================================
 
@@ -37,6 +37,8 @@ r = None
 
 p = None
 q = None
+
+simulator = None
 
 # the stupidly easy integration technique
 # Riemann integration, from a to b, in N steps
@@ -57,7 +59,7 @@ def integrate_Riemann(f, a, b, N):
 
 # muP, muQ are vectors, varP, varQ are scalars
 def initialize_normal(muP, varP, muQ, varQ):
-	global sigma, wP, wQ, r, p, q, middle
+	global sigma, wP, wQ, r, p, q, simulator, mode
 	muP = tf.convert_to_tensor(muP, dtype=jnp.float32)
 	muQ = tf.convert_to_tensor(muQ, dtype=jnp.float32)
 	varP = tf.convert_to_tensor(varP, dtype=jnp.float32)
@@ -93,9 +95,11 @@ def initialize_normal(muP, varP, muQ, varQ):
 
 	sigma = lambda h: integrate_Riemann(lambda x: 1/(wQ(x) - x*wP(x)), 0, h, 10)
 
+	simulator = normalP
+
 # P is uniform distribution in interval [aP, bP], Q is Uniform in [aQ, bQ].
 def initialize_uniform(aP, bP, aQ, bQ):
-	global sigma, wP, wQ, r, p, q
+	global sigma, wP, wQ, r, p, q, simulator
 	aP = tf.convert_to_tensor(aP, dtype=jnp.float32)
 	bP = tf.convert_to_tensor(bP, dtype=jnp.float32)
 	aQ = tf.convert_to_tensor(aQ, dtype=jnp.float32)
@@ -118,9 +122,11 @@ def initialize_uniform(aP, bP, aQ, bQ):
 
 	sigma = lambda h: integrate_Riemann(lambda x: 1/(wQ(x) - x*wP(x)), 0, h, 10)
 
+	simulator = uniformP
+
 # P is uniform in [0, 1], Q is triangular
 def initialize_triangular(a, c, b):
-	global sigma, wP, wQ, r, p, q
+	global sigma, wP, wQ, r, p, q, simulator
 	a = tf.convert_to_tensor(a, dtype=jnp.float32)
 	c = tf.convert_to_tensor(c, dtype=jnp.float32)
 	b = tf.convert_to_tensor(b, dtype=jnp.float32)
@@ -144,30 +150,70 @@ def initialize_triangular(a, c, b):
 
 	sigma = lambda h: integrate_Riemann(lambda x: 1/(wQ(x) - x*wP(x)), 0, h, 100)
 
+	simulator = uniformP
+
 
 # ==========================================================
 
-x = tf.convert_to_tensor(jnp.linspace(-10, 10, 20), dtype=jnp.float32)
+# the original GPRS algorithm
+def get_sample_from_Q():
+	global simulator
+
+	ExponentialT = tfd.Exponential(rate=1)
+
+	X = None
+	T = 0.0
+	while True:
+		T = T + ExponentialT.sample().numpy()
+		X = simulator.sample()
+
+		if T < sigma(r(X)):
+			break
+		
+	return X
+
+
+def plot_samples(N):
+	x = tf.map_fn(lambda _: get_sample_from_Q(), tf.convert_to_tensor(range(N), dtype=jnp.float32))
+	y = tf.map_fn(lambda x: q(x), x)
+
+	# plt.axis([0, 1, -1, 1])
+	plt.scatter(x, y)
+	plt.show()
+
+
+def plot_sigma():
+	global mode
+	x = tf.convert_to_tensor(jnp.linspace(-10, 10, 20), dtype=jnp.float32)
+
+	initialize_normal([0], 1, [0], 0.5)
+	# initialize_uniform(-3, 3, -2, 2)
+	# initialize_triangular(0.2, 0.5, 0.6)
+
+	y = tf.map_fn(lambda t: sigma(r(t + mode)), x)
+
+	initialize_normal([0], 1, [0.1], 0.5)
+
+	y2 = tf.map_fn(lambda t: sigma(r(t + mode)), x)
+
+	initialize_normal([0], 1, [0.2], 0.5)
+
+	y3 = tf.map_fn(lambda t: sigma(r(t + mode)), x)
+
+	print(y2 - y)
+	print(y3 - y2)
+
+	# plt.axis([-2, 2, 0, 3])
+	plt.plot(x, y)
+	plt.plot(x, y2)
+	plt.plot(x, y3)
+	plt.show()
+
+
+# ==============================================================================
+
+# initialize_triangular(0.1, 0.4, 0.5)
 
 initialize_normal([0], 1, [0], 0.5)
-# initialize_uniform(-3, 3, -2, 2)
-# initialize_triangular(0.2, 0.5, 0.6)
 
-y = tf.map_fn(lambda t: sigma(r(t + middle)), x)
-
-initialize_normal([0], 1, [0.1], 0.5)
-
-y2 = tf.map_fn(lambda t: sigma(r(t + middle)), x)
-
-initialize_normal([0], 1, [0.2], 0.5)
-
-y3 = tf.map_fn(lambda t: sigma(r(t + middle)), x)
-
-print(y2 - y)
-print(y3 - y2)
-
-# plt.axis([-2, 2, 0, 3])
-plt.plot(x, y)
-plt.plot(x, y2)
-plt.plot(x, y3)
-plt.show()
+plot_samples(50)
