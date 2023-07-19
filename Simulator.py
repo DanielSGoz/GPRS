@@ -346,8 +346,8 @@ def check_inequality2():
 	# y1 = tf.map_fn(lambda h: (wQ(h) - h*wP(h))*(-wP_prim(h)), t)
 	# y1 = tf.map_fn(lambda h: -wP_prim(h), t)
 
-	# y1 = tf.map_fn(lambda h: h, t)
-	y1 = tf.map_fn(lambda h: -wP_prim(h)*h, t)
+	y1 = tf.map_fn(lambda h: h, t)
+	# y1 = tf.map_fn(lambda h: -wP_prim(h)*h, t)
 
 	# y1 = tf.map_fn(lambda h: (wQ(h) - h*wP(h)), t)
 
@@ -357,19 +357,120 @@ def check_inequality2():
 	# y2 = tf.map_fn(lambda h: (wQ(h) - h*wP(h))*(-wP_prim(h)), t)
 	# y2 = tf.map_fn(lambda h: -wP_prim(h), t)
 
-	# y2 = tf.map_fn(lambda h: h, t)
-	y2 = tf.map_fn(lambda h: -wP_prim(h)*h, t)
+	y2 = tf.map_fn(lambda h: h, t)
+	# y2 = tf.map_fn(lambda h: -wP_prim(h)*h, t)
 
 	# y2 = tf.map_fn(lambda h: (wQ(h) - h*wP(h)), t)
 
 	(x3, y3) = form_quotient(x1.numpy(), y1.numpy(), x2.numpy(), y2.numpy())
 
-	plt.plot(x1, y1, label='1')
-	plt.plot(x2, y2, label='2')
-	plt.plot(x3, y3, label='3')
+	# plt.plot(x1, y1, label='1')
+	# plt.plot(x2, y2, label='2')
+	# plt.plot(x3, y3, label='3')
+	plt.plot(x1, x2, label='4')
 	# I want label 1 to be under label 2.
 	plt.legend()
 	plt.show()
+
+def find_inverse(x, y, v):
+	# we assume that y is increasing.
+	# if y[0] <= v <= y[-1], then we find an approximate x[i] s.t. y[i] = v.
+	# the we print x[i].
+
+	res = -100
+
+	if v <= y[0]:
+		res = x[0]
+	elif v >= y[-1]:
+		res = x[-1]
+	else:
+		for i in range(len(y) - 2, -1, -1):
+			if y[i] <= v:
+				c = 0
+
+				if y[i] == y[i + 1]:
+					c = 1/2
+				else:
+					c = (v - y[i])/(y[i + 1] - y[i])
+
+				res = c*x[i + 1] + (1 - c)*x[i]
+				break
+			
+	return res
+
+
+def check_inequality3():
+	coeff0 = 1
+	coeff1 = 5
+	d = 1
+
+	non_central_chi2_0 = tfd.NoncentralChi2(d, coeff0)
+	non_central_chi2_1 = tfd.NoncentralChi2(d, coeff1)
+
+	t = tf.convert_to_tensor(jnp.linspace(0, 0.1, 1000), dtype=jnp.float32)
+	y0 = tf.map_fn(lambda x: non_central_chi2_0.cdf(x), t)
+	y1 = tf.map_fn(lambda x: non_central_chi2_1.cdf(x), t)
+
+	t = t.numpy()
+	y0 = y0.numpy()
+	y1 = y1.numpy()
+
+
+	b = min(y0[-1], y1[-1])
+	a = 0
+	s = jnp.linspace(a, b, 1000)
+	l = []
+	x0 = []
+	x1 = []
+	for y in s:
+		# x0 = find_inverse(t, y0, y) # this is v0^{-1}(y)
+		# x1 = find_inverse(t, y1, y) # this is v1^{-1}(y)
+		# l.append(non_central_chi2_1.prob(x1)/non_central_chi2_0.prob(x0))
+		x0.append(find_inverse(t, y0, y))
+		x1.append(find_inverse(t, y1, y))
+
+	plt.plot(x0, x1, label='1')
+	# plt.plot(s, l, label='1')
+	plt.legend()
+	plt.show()
+
+
+def check_inequality4():
+	coeff = 0.1
+	d = 2
+
+	non_central_chi2_1 = tfd.NoncentralChi2(d, coeff)
+
+	t = tf.convert_to_tensor(jnp.linspace(0, 30, 300), dtype=jnp.float32)
+	y = tf.map_fn(lambda x: non_central_chi2_1.prob(x)/(1 - non_central_chi2_1.cdf(x)), t)
+
+	t = t.numpy()
+	y = y.numpy()
+
+	plt.plot(t, y, label='1')
+	plt.legend()
+	plt.show()
+
+	
+
+
+
+	# a = 1
+	# t = tf.convert_to_tensor(jnp.linspace(0.001, 2*a, 100), dtype=jnp.float32)
+	# v1 = tf.map_fn(lambda x: non_central_chi2_2.cdf(x), t)
+	# v1_a = non_central_chi2_2.cdf(a)
+	# y = tf.map_fn(lambda x: max(0, 2*v1_a - x), v1)
+	# v0 = tf.map_fn(lambda x: non_central_chi2_1.cdf(x), y)
+
+	# plt.plot(t, v0, label='4')
+	# plt.legend()
+	# plt.show()
+
+
+
+
+
+
 
 
 
@@ -385,4 +486,8 @@ def check_inequality2():
 
 # plot_sigma()
 
-check_inequality2()
+# check_inequality2()
+
+check_inequality3()
+
+# check_inequality4()
