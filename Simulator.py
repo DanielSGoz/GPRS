@@ -1,6 +1,7 @@
 import math
 import tensorflow as tf
 import tensorflow_probability as tfp
+import numpy as np
 import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
@@ -20,7 +21,10 @@ print()
 print("==========  BEGIN  ==========")
 print()
 
-mode = 0
+error = 0.00000001
+
+mode = None
+maximum = None
 
 # ==========================================================
 
@@ -31,7 +35,10 @@ mode = 0
 sigma = None
 
 wP = None
+wP_prim = None
 wQ = None
+
+K = None
 
 r = None
 
@@ -54,12 +61,55 @@ def integrate_Riemann(f, a, b, N):
 
 	return res* (b - a)/N
 
+def increasing_binsearch(f, a, b, v):
+	global error
+
+	while a + error < b:
+		h = (a + b)/2
+		if(f(h) > v):
+			b = h
+		else:
+			a = h
+
+	return (a + b)/2
+
+def decreasing_binsearch(f, a, b, v):
+	global error
+
+	while a + error < b:
+		h = (a + b)/2
+		if(f(h) < v):
+			b = h
+		else:
+			a = h
+
+	return (a + b)/2
+
+def increasing_function_inverse(f, v):
+	a = 1
+	while f(2*a) < v:
+		a = a*2
+	while f(a) > v:
+		a = a/2
+
+	return increasing_binsearch(f, a, 2*a, v)
+
+def decreasing_function_inverse(f, v):
+	a = 1
+	while f(2*a) > v:
+		a = a*2
+	while f(a) < v:
+		a = a/2
+
+	return decreasing_binsearch(f, a, 2*a, v)
+
+	
 
 # Here is the Normal-Normal diagonal covariance case
 
 # muP, muQ are vectors, varP, varQ are scalars
 def initialize_normal(muP, varP, muQ, varQ):
-	global sigma, wP, wQ, r, p, q, simulator, mode
+	global sigma, wP, wP_prim, wQ, r, p, q, simulator, mode, maximum, K
 	muP = tf.convert_to_tensor(muP, dtype=jnp.float32)
 	muQ = tf.convert_to_tensor(muQ, dtype=jnp.float32)
 	varP = tf.convert_to_tensor(varP, dtype=jnp.float32)
@@ -69,12 +119,12 @@ def initialize_normal(muP, varP, muQ, varQ):
 	d = muP.shape[0]
 
 	muZ = (varP * muQ - varQ * muP)/(varP - varQ)
-	middle = muZ
+	mode = muZ
 	varZ = varP * varQ / (varP - varQ)
 
-	Z = (varP/varQ * 2*math.pi * varZ) ** (d / 2)
-	Z = Z * math.exp(tf.reduce_sum(tf.square(tf.math.subtract(muP, muQ)))/(2*(varP - varQ)))
-
+	K = math.exp(tf.reduce_sum(tf.square(tf.math.subtract(muP, muQ)))/(2*(varP - varQ)))
+	Z = (varP/varQ * 2*math.pi * varZ) ** (d / 2) * K
+	maximum = (varP/varQ) ** (d / 2) * K
 	C = varZ*(2*math.log(Z) - d*math.log(2*math.pi * varZ))
 
 	# for now, works only for 1-D case.
@@ -91,6 +141,7 @@ def initialize_normal(muP, varP, muQ, varQ):
 	r = lambda x: Z*normalZ.prob(x)
 
 	wP = lambda h: non_central_chi2P.cdf((-2*varZ*math.log(h) + C)/varP)
+	wP_prim = lambda h: (-2*varZ)/(varP*h) * non_central_chi2P.prob((-2*varZ*math.log(h) + C)/varP)
 	wQ = lambda h: non_central_chi2Q.cdf((-2*varZ*math.log(h) + C)/varQ)
 
 	sigma = lambda h: integrate_Riemann(lambda x: 1/(wQ(x) - x*wP(x)), 0, h, 10)
@@ -187,33 +238,151 @@ def plot_sigma():
 	x = tf.convert_to_tensor(jnp.linspace(-10, 10, 20), dtype=jnp.float32)
 
 	initialize_normal([0], 1, [0], 0.5)
-	# initialize_uniform(-3, 3, -2, 2)
-	# initialize_triangular(0.2, 0.5, 0.6)
 
-	y = tf.map_fn(lambda t: sigma(r(t + mode)), x)
+	y1 = tf.map_fn(lambda t: sigma(r(t + mode)), x)
 
 	initialize_normal([0], 1, [0.1], 0.5)
 
 	y2 = tf.map_fn(lambda t: sigma(r(t + mode)), x)
 
-	initialize_normal([0], 1, [0.2], 0.5)
-
-	y3 = tf.map_fn(lambda t: sigma(r(t + mode)), x)
-
-	print(y2 - y)
-	print(y3 - y2)
-
 	# plt.axis([-2, 2, 0, 3])
-	plt.plot(x, y)
+	plt.plot(x, y1)
 	plt.plot(x, y2)
-	plt.plot(x, y3)
 	plt.show()
+
+
+def check_inequality():
+	global mode, maximum
+	# checking the inequality, only for 1-D case.
+
+	initialize_normal([0], 1, [0], 0.96)
+
+	t1 = tf.math.scalar_mul(maximum, tf.convert_to_tensor(jnp.linspace(0.001, 0.01, 100), dtype=jnp.float32))
+
+	x1 = tf.map_fn(lambda t: sigma(t), t1)
+	y1 = tf.map_fn(lambda t: wP(t), t1)
+
+	initialize_normal([0], 1, [0.1], 0.96)
+ 
+	t2 = tf.math.scalar_mul(maximum, tf.convert_to_tensor(jnp.linspace(0.001, 0.01, 100), dtype=jnp.float32))
+
+	x2 = tf.map_fn(lambda t: sigma(t), t2)
+	y2 = tf.map_fn(lambda t: wP(t), t2)
+
+	x0 = tf.convert_to_tensor(jnp.linspace(0.001, 0.999, 100), dtype=jnp.float32)
+
+	plt.plot(x1, y1, label='1')
+	plt.plot(x2, y2, label='2')
+	plt.legend()
+	plt.show()
+
+def extend_x(x1, y1, x2):
+	x3 = []
+	y3 = []
+
+	i1 = -1
+	i2 = -1
+
+	while True:
+		if (i1 == len(x1) - 1) or (i2 == len(x2) - 1):
+			break
+		elif x1[i1 + 1] < x2[i2 + 1]:
+			i1 = i1 + 1
+
+			if not (i2 == -1):
+				x3.append(x1[i1])
+				y3.append(y1[i1])
+		else:
+			i2 = i2 + 1
+
+			if not (i1 == -1):
+				x3.append(x2[i2])
+				if x1[i1 + 1] == x1[i1]:
+					x3.append(y1[i1])
+				else:
+					y3.append((y1[i1]*(x1[i1 + 1] - x2[i2]) + y1[i1 + 1]*(x2[i2] - x1[i1]))/(x1[i1 + 1] - x1[i1]))
+		
+	return (x3, y3)
+
+
+def form_quotient(x1, y1, x2, y2):
+	if x1[0] > x1[-1]:
+		x1 = np.flip(x1)
+		y1 = np.flip(y1)
+	if x2[0] > x2[-1]:
+		x2 = np.flip(x2)
+		y2 = np.flip(y2)
+
+	(x3, y3) = extend_x(x1, y1, x2)
+	(x4, y4) = extend_x(x2, y2, x1)
+
+	while len(x3) < len(x4):
+		x4.pop()
+		y4.pop()
+	while len(x4) < len(x3):
+		x3.pop()
+		y3.pop()
+
+	for i in range(len(x3)):
+		y3[i] = y3[i]/y4[i]
+
+	return (x3, y3)
+
+
+def check_inequality2():
+	global mode, maximum, K
+
+	var = 0.5
+	mu = 0.1
+	d = 1
+	center = [0] * d
+	center_mu = [0] * d
+	center_mu[0] = mu
+
+	initialize_normal(center, 1, center, var)
+
+	t = tf.math.scalar_mul(maximum, tf.convert_to_tensor(jnp.linspace(0.001, 0.999, 100), dtype=jnp.float32))
+	x1 = tf.map_fn(lambda h: wP(h), t)
+	# y1 = tf.map_fn(lambda h: (wQ(h) - h*wP(h))*(-wP_prim(h)), t)
+	# y1 = tf.map_fn(lambda h: -wP_prim(h), t)
+
+	# y1 = tf.map_fn(lambda h: h, t)
+	y1 = tf.map_fn(lambda h: -wP_prim(h)*h, t)
+
+	# y1 = tf.map_fn(lambda h: (wQ(h) - h*wP(h)), t)
+
+
+	initialize_normal(center, 1, center_mu, var)
+	x2 = tf.map_fn(lambda h: wP(h), t)
+	# y2 = tf.map_fn(lambda h: (wQ(h) - h*wP(h))*(-wP_prim(h)), t)
+	# y2 = tf.map_fn(lambda h: -wP_prim(h), t)
+
+	# y2 = tf.map_fn(lambda h: h, t)
+	y2 = tf.map_fn(lambda h: -wP_prim(h)*h, t)
+
+	# y2 = tf.map_fn(lambda h: (wQ(h) - h*wP(h)), t)
+
+	(x3, y3) = form_quotient(x1.numpy(), y1.numpy(), x2.numpy(), y2.numpy())
+
+	plt.plot(x1, y1, label='1')
+	plt.plot(x2, y2, label='2')
+	plt.plot(x3, y3, label='3')
+	# I want label 1 to be under label 2.
+	plt.legend()
+	plt.show()
+
 
 
 # ==============================================================================
 
 # initialize_triangular(0.1, 0.4, 0.5)
 
-initialize_normal([0], 1, [0], 0.5)
+# initialize_normal([0], 1, [0], 0.5)
 
-plot_samples(50)
+# plot_samples(50)
+
+# check_inequality()
+
+# plot_sigma()
+
+check_inequality2()
