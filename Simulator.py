@@ -50,10 +50,7 @@ simulator = None
 # the stupidly easy integration technique
 # Riemann integration, from a to b, in N steps
 def integrate_Riemann(f, a, b, N):
-	if N == 1:
-		return f((a + b)/2)
-
-	dt = (b - a)/(N - 1)
+	dt = (b - a)/N
 
 	res = 0
 	for k in range(0, N):
@@ -400,14 +397,14 @@ def find_inverse(x, y, v):
 
 
 def check_inequality3():
-	coeff0 = 1
+	coeff0 = 0
 	coeff1 = 5
 	d = 1
 
 	non_central_chi2_0 = tfd.NoncentralChi2(d, coeff0)
 	non_central_chi2_1 = tfd.NoncentralChi2(d, coeff1)
 
-	t = tf.convert_to_tensor(jnp.linspace(0, 0.1, 1000), dtype=jnp.float32)
+	t = tf.convert_to_tensor(jnp.linspace(0, 1, 1000), dtype=jnp.float32)
 	y0 = tf.map_fn(lambda x: non_central_chi2_0.cdf(x), t)
 	y1 = tf.map_fn(lambda x: non_central_chi2_1.cdf(x), t)
 
