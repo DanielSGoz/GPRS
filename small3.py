@@ -1,60 +1,76 @@
-from math import exp
-from math import sqrt
-from math import cos
-from math import sin
-from math import pi
+import math
+import random
+import scipy
 
 e = 1
+ERR = 0.0000001
 
 # needs e >= 0
 def integrate_Riemann(c, s, N):
 	global e
 
-	dt = pi/N
+	dt = math.pi/N
 
 	res = 0
 	for k in range(0, N):
 		t = (2*k + 1)*dt/2
-		val = sin(t)**e
-		val = val*(c*cos(t))**s
-		val = val*exp(c*cos(t))
+		val = math.sin(t)**e
+		val = val*(c*math.cos(t))**s
+		val = val*math.exp(c*math.cos(t))
 
 		res = res + val
 
-	return res* pi/N
+	return res* math.pi/N
 
-def single2(x, y, z, c, s):
-	return exp(c*(x + y + z))*(((1 - x*x)*(1 - y*y)*(1 - z*z)) ** (s/2.0))
+def f(x, s):
+	return (1 - x*x)**(s/2)
+
+def single2(x, y, z, w, s1, s2, l):
+	# return (x + y + z)*exp(c*(x + y + z))*((1 - x*x)*(1 - y*y)*(1 - z*z))**(s/2)
+	return (w**l) * ((1 - y*y)**s2) * (((1 - x*x)*(1 - z*z))**s1)
+
+def integrate3(a, b, c, s1, s2, l, n):
+	global ERR
+	# res = scipy.integrate.fixed_quad(lambda x: single2(x - b, x + a, x + b, x + c, s1, s2, l) - single2(x - b, x - a, x + b, x - c, s1, s2, l), -1 + b, 1 - b, n=n)
+	res = scipy.integrate.fixed_quad(lambda x: single2(x - b, x + a, x + b, x + c, s1, s2, l), -1 + b, 1 - b, n=n)
+
+	return res[0]
+
+
 
 def single3(x, y, z, c, s):
 	if -2 < x + y and x + y < 2 and -2 < y + z and y + z < 2 and -2 < z + x and z + x < 2:
-		return exp(c*(x + y + z))*x*y*z* ((2 - x - y)*(2 + x + y)*(2 - y - z)*(2 + y + z)*(2 - z - x)*(2 + z + x)) ** (s/2.0)
+		return math.exp(c*(x + y + z))*x*y*z* ((2 - x - y)*(2 + x + y)*(2 - y - z)*(2 + y + z)*(2 - z - x)*(2 + z + x)) ** (s/2.0)
 	else:
 		return 0
 	
 def ultra_symmetric3(x, y, z, c, s):
 	return single3(x, y, z, c, s) + single3(-x, y, z, c, s) + single3(x, -y, z, c, s) + single3(-x, -y, z, c, s) + single3(x, y, -z, c, s) + single3(-x, y, -z, c, s) + single3(x, -y, -z, c, s) + single3(-x, -y, -z, c, s)
 
-def integrate2(dzx, dyx, c, s, N):
-	dt = (2 - dzx)/N
+# def integrate2(dzx, dyx, c, s, l, N):
+# 	dt = (2 - dzx)/N
 
-	res = 0
-	for k in range(0, N):
-		t = -1 + (2*k + 1)*dt/2
+# 	res = 0
+# 	for k in range(0, N):
+# 		a = -1 + k*dt
+# 		b = -1 + (k + 1)*dt
+# 		t = -1 + (2*k + 1)*dt/2
 
-		x = t
-		y = t + dyx
-		z = t + dzx
-		u = t + dzx - dyx
-		res = res + single2(x, y, z, c, s)
-		res = res - single2(x, u, z, c, s)
+# 		res = res + 
 
-	return res * (2*dyx - dzx)
+# 		x = t
+# 		y = t + dyx
+# 		z = t + dzx
+# 		u = t + dzx - dyx
+# 		res = res + single2(x, y, z, c, l, s)
+# 		res = res - single2(x, u, z, c, l, s)
+
+# 	return res * (2*dyx - dzx)
 
 
 def single(x, y, z):
 	global e    
-	return exp(x + y + z) * (-e * z*z + e*z - 2*y*z*z + e*y*z + 2*x*y*z)
+	return math.exp(x + y + z) * (-e * z*z + e*z - 2*y*z*z + e*y*z + 2*x*y*z)
     
 def ultra_symmetric2(x, y, z, c, s):
 	if x > y or y > z:
@@ -71,7 +87,7 @@ def symmetric(x, y, z):
 	# return exp(x + y + z) * (-2*e*(x*x + y*y + z*z) + 2*e*(x + y + z) - 2*(x*y*y + x*x*y + y*z*z + y*y*z + z*z*x + z*x*x) + 2*e*(x*y + y*z + z*x) + 12*x*y*z)
 	# return (2*(x*x*x + y*y*y + z*z*z) + 2*(x*x + y*y + z*z) - 3*(x*y*y + x*x*y + y*z*z + y*y*z + z*z*x + z*x*x) - 2*(x*y + y*z + z*x) - 2*(x + y + z) + 12*x*y*z)
 	# return exp(x + y + z) * (2*(x*x*x + y*y*y + z*z*z) - 3*(x*y*y + x*x*y + y*z*z + y*y*z + z*z*x + z*x*x) + 12*x*y*z)
-	return exp(x + y + z) * (x + y - 2*z)*(y + z - 2*x)*(z + x - 2*y)*(x + y + z)**4
+	return math.exp(x + y + z) * (x + y - 2*z)*(y + z - 2*x)*(z + x - 2*y)*(x + y + z)**4
 
 def ultra_symmetric(x, y, z):
 	return symmetric(x, y, z) + symmetric(-x, y, z) + symmetric(x, -y, z) + symmetric(-x, -y, z) + symmetric(x, y, -z) + symmetric(-x, y, -z) + symmetric(x, -y, -z) + symmetric(-x, -y, -z)
@@ -97,12 +113,40 @@ table3 = [0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.8, 1, 1.1, 1.5, 1.7, 1.8, 1.9, 
 # 					if integrate2(z - x, y - x, c, 1, 1000) < -0.00001:
 # 						print(integrate2(z - x, y - x, c, 3, 1000))
 
-for dzx in table3:
-	for dyx in table3:
-		for c in table2:
-			if dyx < dzx:
-				if integrate2(dzx, dyx, c, 5, 1000) < -0.00001:
-					print(integrate2(dzx, dyx, c, 5, 1000))
+# for k in range(3, 10):
+
+# 	print(integrate3(0.3, k/10, 0.1, 3, 3, 1, 1000))
+
+i = 0
+while True:
+	print(i)
+	i = i + 1
+	b = random.random()
+	a = random.random()*b
+	c = a*1/3
+	s = random.randint(0, 5)
+	l = random.randint(0, 9)
+	w = integrate3(a, b, c, s, s, 2*l+1, 1000)
+	print(w)
+	if w < 0:
+		print(w)
+	# print(w)
+	if w < -ERR:
+		print(s)
+		print(a)
+		print(b)
+		print(c)
+		print(2*l + 1)
+		print(w)
+		break
+
+
+# for dzx in table3:
+# 	for dyx in table3:
+# 		for c in table2:
+# 			if dyx < dzx:
+# 				if integrate2(dzx, dyx, c, 100, 10000) < -0.0000001:
+# 					print(integrate2(dzx, dyx, c, 100, 10000))
 
 
 
