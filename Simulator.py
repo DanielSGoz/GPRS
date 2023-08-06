@@ -464,6 +464,40 @@ def check_inequality4():
 	# plt.show()
 
 
+def check_inequality5():
+	global mode, maximum, K
+
+	var = 0.9
+	d = 1
+	center = [0] * d
+
+	initialize_normal(center, 1, center, var)
+
+	print("MAXIMUM:")
+	print(maximum)
+	print("")
+
+	t = tf.math.scalar_mul(maximum, tf.convert_to_tensor(jnp.linspace(0.001, 0.999, 100), dtype=jnp.float32))
+	x1 = tf.map_fn(lambda h: h, t)
+	# y1 = tf.map_fn(lambda h: (wQ(h) - h*wP(h))*(-wP_prim(h)), t)
+	# y1 = tf.map_fn(lambda h: -wP_prim(h), t)
+
+	y1 = tf.map_fn(lambda h: sigma(h), t)
+	# y1 = tf.map_fn(lambda h: -wP_prim(h)*h, t)
+
+	# y1 = tf.map_fn(lambda h: (wQ(h) - h*wP(h)), t)
+	x2 = tf.map_fn(lambda h: h, t)
+	y2 = tf.map_fn(lambda h: maximum*math.log(maximum/(maximum - h)), t)
+
+
+	plt.plot(x1, y1, label='1')
+	plt.plot(x2, y2, label='2')
+	# plt.plot(x3, y3, label='3')
+	# plt.plot(x4, y4, label='4')
+	# I want label 1 to be under label 2.
+	plt.legend()
+	plt.show()
+
 
 
 
@@ -485,6 +519,8 @@ def check_inequality4():
 
 # check_inequality2()
 
-check_inequality3()
+# check_inequality3()
 
 # check_inequality4()
+
+check_inequality5()

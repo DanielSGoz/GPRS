@@ -116,6 +116,7 @@ def expected_power(p, a):
 	return SUM
 
 
+# Well, not exactly
 def renyi_divergence(p, q, a):
 	SUM = 0.0
 
@@ -134,6 +135,23 @@ def infinity_divergence(p, q):
 	return math.log2(MAX)
 
 
+def integral_a(p, q, a):
+	K = len(p)
+	SUM = 0.0
+	PARTIAL = 1.0
+
+	for i in range(K):
+		diff = 0.0
+		if i == 0:
+			diff = q[0]/p[0]
+		else:
+			diff = q[i]/p[i] - q[i - 1]/p[i - 1]
+
+		SUM = SUM + diff * (PARTIAL**(1 - a))
+		PARTIAL = PARTIAL - p[i]
+
+	return SUM
+
 
 def generate_diffs(p, q, S, a):
 	(p, q) = order_two(p, q)
@@ -144,15 +162,29 @@ def generate_diffs(p, q, S, a):
 
 	entropyN = entropy(probN)
 	divergence = KL_divergence(q, p)
-	divergencea = renyi_divergence(q, p, a)
+	divergencea = renyi_divergence(q, p, 1/(1 - a))
 	divergenceinf = infinity_divergence(q, p)
 	codelengthN = expected_codelength(probN)
 	codelengthNa = expected_power(probN, a)
+	integrala = integral_a(p, q, a)
 
 	diff1 = codelengthN - divergence
 	diff2 = entropyN - divergence - 1 - math.log2(divergence + 1)
-	print(codelengthNa)
-	diff3 = codelengthNa - 1/(1 - a) * (1 + divergenceinf * math.log(2))*(divergencea**(1 - a))
+	# diff3 = (1 + divergenceinf * math.log(2))*(divergencea**(1 - a)) - integrala
+	# diff3 = codelengthNa - 1/(1 - a) * (1 + divergenceinf * math.log(2))*(divergencea**(1 - a))
+	# diff3 = codelengthNa - 1/(1 - a) * (divergencea**(1 - a))
+	# print(divergencea)
+	diff3 = codelengthNa/(1/(1 - a) * divergencea)
+	# diff3 = codelengthNa - (1/(1 - a) * divergencea)**(1 - a)
+	# diff3 = codelengthNa - 1/(1 - a)*(divergencea)**(1 - a)
+	# diff3 = codelengthNa - 1/(1 - a)*renyi_divergence(q, p, 1 + a)
+
+	diff3 = codelengthNa/(renyi_divergence(q, p, a))
+
+
+	# diff3 = codelengthNa - (1 + a)*renyi_divergence(q, p, 1 + a)
+	# diff3 = integrala - divergencea**(1 - a)
+
 
 	# print(diff1) # currently have an upper bound of 2 log2(e)
 	# print(diff2) # currently have an upper bound of... 2log2(e) + 1 + log2(2log2(e) + 1)
@@ -160,17 +192,17 @@ def generate_diffs(p, q, S, a):
 	return (diff1, diff2, diff3)
 
 def simulate_batch():
-	max_diff1 = -1000
-	max_diff2 = -1000
-	max_diff3 = -1000
+	min_diff1 = 1000
+	# max_diff2 = -1000
+	# max_diff3 = -1000
 	max_p = None
 	max_q = None
 
 
-	for i in range(10000):
+	for i in range(1000):
 		K = 2
 		S = 100
-		a = 1.0/2
+		a = 0.9
 		p = generate_probs(K)
 		# p = [0.999, 0.001]
 		# p = [0.49, 0.5, 0.01]
@@ -183,39 +215,48 @@ def simulate_batch():
 		
 
 		(diff1, diff2, diff3) = generate_diffs(p, q, S, a)
-		# print(diff1)
+		print(diff1)
 		# print(diff2)
-		print(diff3)
-		if not math.isnan(diff1) and diff1 > max_diff1:
-			max_diff1 = diff1
-		if not math.isnan(diff2) and diff2 > max_diff2:
-			max_diff2 = diff2
-		if not math.isnan(diff3) and diff3 > max_diff3:
+		# print(diff3)
+		if not math.isnan(diff1) and diff1 < min_diff1:
 			max_p = p
 			max_q = q
-			max_diff3 = diff3
+			min_diff1 = diff1
+		# if not math.isnan(diff2) and diff2 > max_diff2:
+		# 	max_diff2 = diff2
+		# if not math.isnan(diff3) and diff3 > max_diff3:
+		# 	max_diff3 = diff3
 
 	print("DONE!!")
 	print(max_p)
 	print(max_q)
-	print(max_diff1)
-	print(max_diff2)
-	print(max_diff3)
+	print(min_diff1)
+	# print(max_diff2)
+	# print(max_diff3)
 
 
 def simulate_one():
-	e = 0.9999
-	p = [1 - e, e]
-	q = [e, 1 - e]
-	S = 1000
-	a = 1.0/2
+	# e = 0.99
+	# p = [e, 1 - e]
+	# q = [0.620551507307884, 0.379448492692116]
+	p = [0.9999824853139071, 1 - 0.9999824853139071]
+	q = [0.2383238792216633, 1 - 0.2383238792216633]
+	S = 10000
+	a = 0.9
 	(diff1, diff2, diff3) = generate_diffs(p, q, S, a)
-	print(diff3)
+	print(diff1)
 
 
+# simulate_batch()
 simulate_one()
 
 ##########   HALL OF FAME (i.e. best so far)  ############
 
 # diff1: 0.6429 (the gamma one)
 # diff2: 0.516464956776165 (something else whatever)
+# diff3: -0.8678526198474881
+
+# a = 1/2: 
+# a = 1/4: -0.26210046805320597
+# a = 1/5: -0.1928819855726842
+# a = 1/10: -0.08009356740217943
