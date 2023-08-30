@@ -25,10 +25,10 @@ def val(x):
 
 
 
-x = numpy.linspace(0, 10, 300)
+x = numpy.linspace(0, 1000, 300)
 y = []
 for i in range(len(x)):
-	y.append(val(x[i]))
+	y.append(val(x[i])*x[i])
 
 
 plt.plot(x, y, label='1')

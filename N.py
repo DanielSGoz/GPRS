@@ -20,6 +20,11 @@ def generate_probs(K):
         
 	return normalize(p)
 
+def generate_probs2(K):
+	p = [2**(random.random()*10) for _ in range(K)]
+        
+	return normalize(p)
+
 
 def uniform(K):
 	return [1/K for _ in range(K)]
@@ -168,7 +173,7 @@ def generate_diffs(p, q, S, a):
 	codelengthNa = expected_power(probN, a)
 	integrala = integral_a(p, q, a)
 
-	diff1 = codelengthN - divergence
+	diff1 = (divergence + 2 + math.log2(divergence + 1)) - entropyN
 	diff2 = entropyN - divergence - 1 - math.log2(divergence + 1)
 	# diff3 = (1 + divergenceinf * math.log(2))*(divergencea**(1 - a)) - integrala
 	# diff3 = codelengthNa - 1/(1 - a) * (1 + divergenceinf * math.log(2))*(divergencea**(1 - a))
@@ -200,8 +205,8 @@ def simulate_batch():
 
 
 	for i in range(1000):
-		K = 2
-		S = 100
+		K = 4
+		S = 1000
 		a = 0.9
 		p = generate_probs(K)
 		# p = [0.999, 0.001]
@@ -239,16 +244,16 @@ def simulate_one():
 	# e = 0.99
 	# p = [e, 1 - e]
 	# q = [0.620551507307884, 0.379448492692116]
-	p = [0.9999824853139071, 1 - 0.9999824853139071]
-	q = [0.2383238792216633, 1 - 0.2383238792216633]
-	S = 10000
+	p = [0.95, 0.05]
+	q = [0.5, 0.5]
+	S = 1000
 	a = 0.9
 	(diff1, diff2, diff3) = generate_diffs(p, q, S, a)
 	print(diff1)
 
 
-# simulate_batch()
-simulate_one()
+simulate_batch()
+# simulate_one()
 
 ##########   HALL OF FAME (i.e. best so far)  ############
 
